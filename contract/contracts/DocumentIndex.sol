@@ -3,6 +3,8 @@ pragma solidity ^0.8.20;
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
+import "hardhat/console.sol";
+
 using MessageHashUtils for DocumentIndex;
 
 contract DocumentIndex {
@@ -23,7 +25,7 @@ contract DocumentIndex {
         projectDocHash = _projectDocHash;
         signers = _signers;
         threshold = _signersThreshold;
-        for (uint i = 0; i < threshold; i++) {
+        for (uint i = 0; i < _signers.length; i++) {
             isValidSigner[_signers[i]] = true;
         }
     }
@@ -34,6 +36,14 @@ contract DocumentIndex {
 
     function reports() public view returns (bytes32[] memory) {
         return projectReports;
+    }
+
+    function reportNonce() public view returns (uint256) {
+        return nonce;
+    }
+
+    function isSigner(address target) public view returns (bool) {
+        return isValidSigner[target];
     }
 
     function _processDocumentInfo(
@@ -58,7 +68,7 @@ contract DocumentIndex {
         for (uint i = 0; i < count; i++) {
             bytes memory sig = _multiSignature[i];
             address signer = ECDSA.recover(digest, sig);
-            require(signer > initSignerAddress, "duplicate?");
+            require(signer > initSignerAddress, "duplicate signer");
             require(isValidSigner[signer], "allow only valid signers");
             initSignerAddress = signer;
         }
