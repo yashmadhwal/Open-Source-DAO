@@ -9,7 +9,7 @@ contract VestingWallet is IVestingWallet, Ownable {
     event EtherReleased(uint256 amount);
 
     uint256 public constant DECIMALS = 18;
-    uint256 public constant MONTH_SECONDS = 2628000;
+    uint256 public constant MONTH_SECONDS = 2592000;
     uint256 public constant WEEK_SECONDS = 604800;
 
     address private immutable receivingAddress;
@@ -33,9 +33,9 @@ contract VestingWallet is IVestingWallet, Ownable {
         receivingAddress = _receivingAddress;
     }
 
-    function votingPeriod() public view returns (bool isActive, uint256 periodNo) {
-        if (month() <= 1) {
-            return (false, 0);
+    function votingPeriod() public view returns (bool voteActive, uint256 periodNo) {
+        if (month() <= 1 || month() > monthsDuration) {
+            return (false, month());
         }
 
         uint256 votingEndTs = startTs + (month() - 1) * MONTH_SECONDS + WEEK_SECONDS;
@@ -62,6 +62,10 @@ contract VestingWallet is IVestingWallet, Ownable {
     function reclaimBank() public payable onlyOwner {
         require(active, "vesting must be active");
         Address.sendValue(payable(sourceAddress()), address(this).balance);
+    }
+
+    function isActive() public view returns (bool) {
+        return active;
     }
 
     function start() public view returns (uint256) {

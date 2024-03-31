@@ -25,7 +25,13 @@ describe("DocumentIndex", function () {
         const factory = await ethers.getContractFactory("DocumentIndex")
         const contract = await factory.deploy(projDocHash, addrs, threshold)
 
-        return { contract, signers, projDocHash, threshold }
+        let nonce = await contract.reportNonce() + 1n
+        const { projectReportHash, digest } = sampleProjectReport(nonce)
+
+        // Signers are already sorted
+        let signatures = await Promise.all(signers.map((a) => a.signMessage(digest)))
+
+        return { contract, signers, projDocHash, threshold, nonce, projectReportHash, signatures }
     }
 
     function sampleProjectReport(nonce) {
@@ -46,7 +52,7 @@ describe("DocumentIndex", function () {
 
     describe("Deployment", () => {
         it("Deploys correctly", async () => {
-            const { contract, signers, projDocHash, threshold } = await loadFixture(deployDocumentIndexFixture)
+            const { contract, signers, projDocHash, threshold, projectReportHash, signatures } = await loadFixture(deployDocumentIndexFixture)
             expect(await contract.reports().then((x) => x.length)).equals(0)
             expect(await contract.proposal()).equals(projDocHash)
             expect(await contract.reportNonce()).equals(0)
@@ -57,51 +63,41 @@ describe("DocumentIndex", function () {
         })
     })
 
-    describe("Documents", () => {
+    describe("Multisig", () => {
         it("Verifies signed reports", async function () {
-            const { contract, signers, projDocHash, threshold } = await loadFixture(deployDocumentIndexFixture)
-            let nonce = await contract.reportNonce() + 1n
-            const { projectReportHash, digest } = sampleProjectReport(nonce)
+            const { contract, nonce, projectReportHash, signatures } = await loadFixture(deployDocumentIndexFixture)
 
-            // Signers are already sorted
-            let signatures = await Promise.all(signers.map((a) => a.signMessage(digest)))
             await contract.submitReport(projectReportHash, nonce, signatures)
-
-            it("Displays dev reports", async function() {
-                expect(await contract.reports().then((x) => x.length)).equals(1)
-            })
-        });
-    });
-
-    describe("Digital signature", () => {
-        it("Declines duplicated signatures", async function () {
-            const { contract, signers, projDocHash, threshold } = await loadFixture(deployDocumentIndexFixture)
-            let nonce = await contract.reportNonce() + 1n
-            const { projectReportHash, digest } = sampleProjectReport(nonce)
-
-            let sig = await signers[0].signMessage(digest)
-            let signatures = [sig, sig, sig]
-            expect(contract.submitReport(projectReportHash, nonce, signatures)).to.be.revertedWith("duplicate signer")
-        });
-
-        it("Does not allow replay", async function () {
-            const { contract, signers, projDocHash, threshold } = await loadFixture(deployDocumentIndexFixture)
-            let nonce = await contract.reportNonce() + 1n
-            const { projectReportHash, digest } = sampleProjectReport(nonce)
-
-            let signatures = await Promise.all(signers.map((a) => a.signMessage(digest)))
-            await contract.submitReport(projectReportHash, nonce, signatures)
-            expect(contract.submitReport(projectReportHash, nonce, signatures)).to.be.revertedWith("do not allow replay")
         });
 
         it("Honors signature threshold", async function () {
-            const { contract, signers, projDocHash, threshold } = await loadFixture(deployDocumentIndexFixture)
-            let nonce = await contract.reportNonce() + 1n
-            const { projectReportHash, digest } = sampleProjectReport(nonce)
+            const { contract, nonce, projectReportHash, signatures } = await loadFixture(deployDocumentIndexFixture)
+            const badSig = signatures.slice(0, 1)
 
-            let sig = await signers[0].signMessage(digest)
-            let signatures = [sig]
-            expect(contract.submitReport(projectReportHash, nonce, signatures)).to.be.revertedWith("not enough signers")
+            expect(contract.submitReport(projectReportHash, nonce, badSig)).to.be.revertedWith("not enough signers")
         });
+
+        it("Accepts valid reports with above threshold signatures", async function() {
+            const { contract, nonce, projectReportHash, signatures } = await loadFixture(deployDocumentIndexFixture)
+            const goodSig = signatures.slice(0, 2)
+
+            await contract.submitReport(projectReportHash, nonce, goodSig)
+        })
+
+        it("Displays dev reports", async function() {
+            const { contract, nonce, projectReportHash, signatures } = await loadFixture(deployDocumentIndexFixture)
+
+            await contract.submitReport(projectReportHash, nonce, signatures)
+            
+            let reports = await contract.reports()
+            expect(reports.length).equals(1)
+            expect(reports[0]).equals(projectReportHash)
+        })
+
+        it("Does not allow replay", async function () {
+            const { contract, nonce, projectReportHash, signatures } = await loadFixture(deployDocumentIndexFixture)
+
+            expect(contract.submitReport(projectReportHash, nonce, signatures)).to.be.revertedWith("do not allow replay")
+        })
     });
 });

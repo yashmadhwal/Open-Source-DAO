@@ -9,12 +9,6 @@ contract CrowdFund {
         VESTING,
         ABORTED
     }
-    
-    enum VoteType {
-        ABSTAIN,
-        ABORT,
-        CONTINUE
-    }
 
     mapping(uint256 => uint256) voting_abortTotal;
     mapping(uint256 => uint256) voting_continueTotal;
@@ -29,30 +23,34 @@ contract CrowdFund {
     uint256 collectThreshold;
 
     uint256 private immutable depositLowCap;
-    uint256 private immutable votingAbortRatio;
+    uint256 private immutable votingAbortPercent;
     uint256 private immutable icoStartTs;
     uint256 private immutable icoEndTs;
 
     constructor(
         uint256 _depositLowCap,
-        uint256 _votingAbortRatio,
+        uint256 _votingAbortPercent,
         uint256 _startTimestamp,
         uint256 _endTimestamp,
         uint256 _successLowerThreshold,
         address _vestingContract
     ) {
         depositLowCap = _depositLowCap;
-        votingAbortRatio = _votingAbortRatio;
+        votingAbortPercent = _votingAbortPercent;
         icoStartTs = _startTimestamp;
         icoEndTs = _endTimestamp;
         collectThreshold = _successLowerThreshold;
         vestingContract = _vestingContract;
     }
 
-    function deposit() external payable {
+    receive() external payable {
+        deposit();
+    }
+
+    function deposit() public payable {
         uint256 _amount = msg.value;
         address _sponsor = msg.sender;
-        require(_amount > depositLowCap, "deposit must be not less than the minimum cap");
+        require(_amount >= depositLowCap, "deposit must be not less than the minimum cap");
         sponsorTokenBalanceOf[_sponsor] += _amount;
         sponsorTokenTotalSupply += _amount;
     }
@@ -72,24 +70,29 @@ contract CrowdFund {
         Address.sendValue(payable(vestingContract), sponsorTokenTotalSupply);
     }
 
+    function balance(address owner) public view returns (uint256) {
+        return sponsorTokenBalanceOf[owner];
+    }
+
     function withdrawAll() onlyAborted external payable {
         if (!reclaimed) {
             IVestingWallet(vestingContract).reclaimBank();
             reclaimed = true;
         }
 
-        uint256 balance = (address(this).balance * sponsorTokenBalanceOf[msg.sender]) / sponsorTokenTotalSupply;
+        uint256 toRefund = (address(this).balance * sponsorTokenBalanceOf[msg.sender]) / sponsorTokenTotalSupply;
         sponsorTokenBalanceOf[msg.sender] = 0;
-        Address.sendValue(payable(msg.sender), balance);
+        Address.sendValue(payable(msg.sender), toRefund);
     }
 
     function votedToAbort() public view returns (bool) {
         (,uint256 periodNo) = IVestingWallet(vestingContract).votingPeriod();
         require(voting_index == periodNo, "voting outdated");
-        return voting_abortTotal[voting_index] / sponsorTokenTotalSupply > votingAbortRatio;
+
+        return (100 * voting_abortTotal[voting_index]) / sponsorTokenTotalSupply >= votingAbortPercent;
     }
 
-    function vote(VoteType vtype) public {
+    function vote(bool abort) public {
         address _voter = msg.sender;
         require(sponsorTokenBalanceOf[_voter] > 0, "no voting power");
 
@@ -102,7 +105,7 @@ contract CrowdFund {
         require(!voting_acceptedVotes[voting_index][_voter], "already voted");
         voting_acceptedVotes[voting_index][_voter] = true;
 
-        if (vtype == VoteType.ABORT) {
+        if (abort) {
             voting_abortTotal[voting_index] += sponsorTokenBalanceOf[_voter];
         } else {
             voting_continueTotal[voting_index] += sponsorTokenBalanceOf[_voter];
@@ -124,7 +127,7 @@ contract CrowdFund {
             checkAborted(); 
         }
 
-        require(state == FundingState.ABORTED);
+        require(state == FundingState.ABORTED, "only in aborted state");
         _;
     }
 }
