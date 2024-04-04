@@ -10,14 +10,22 @@
 
 
 
-  <div class="flex-grow flex justify-center justify-center items-center text-[#F1E9DA]">
-    <div class="p-4 rounded rounded-[20px] w-[600px] mx-auto bg-[#541388] tracking-[2px] shadow-2xl">
-      <h2 class="text-lg font-bold text-center">Fund Collection Progress</h2>
+  <div class="flex-grow flex-col flex justify-center justify-center items-center space-y-4">
+    <div v-if="!address" class="p-4 rounded rounded-[20px] w-[600px] mx-auto bg-[#541388] tracking-[2px] shadow-2xl space-y-4">
+      <h2 class="text-lg font-bold text-center text-[#F1E9DA]">Link project</h2>
+
+      <input type="text" v-model="addressInput" id="projectContractAddrInput" name="projectContractAddrInput" placeholder="Project address"
+          class="form-input block w-full" required>
+      <div @click="linkContract()" class="custom-button-fund">Go</div>
+    </div>
+
+    <div v-if="address" class="p-4 rounded rounded-[20px] w-[600px] mx-auto bg-[#541388] tracking-[2px] shadow-2xl text-[#F1E9DA]">
+      <h2 class="text-lg font-bold text-center">Fund Collection Progress <span v-if="icoOver && icoSuccess">(SUCCESS)</span></h2>
 
       <!-- Project Information -->
       <div class="flex justify-between information-block">
         Project HASH:
-        <div class="flex">d508b362....e48a7479 &nbsp<img @click="copyToClipboard()" src="../assets/Icons/copy.png" alt=""
+        <div class="flex">{{ minHash }} &nbsp<img @click="copyToClipboard()" src="../assets/Icons/copy.png" alt=""
             class="h-[20px] cursor-pointer btn-copy invert"></div>
       </div>
 
@@ -48,18 +56,26 @@
           Collected:
         </div>
         <div>
-          {{ amountCollected }} / {{ totalAmount }} ETH
+          {{ amountCollected / 1e18 }} / {{ totalAmount / 1e18 }} ETH
         </div>
       </div>
 
       <!-- Fund Now -->
       <!-- Check that campaining still going of -->
 
-      <div v-if="timeLeft > 0" @click="FundNow()" class="custom-button-fund">
-        Fund Now!</div>
-      <div v-else class="custom-button-fund">
-        Funding over
+      <div>
+        <div v-if="timeLeft > 0" @click="fund()" class="custom-button-fund">
+          Fund Now!
+        </div>
+        <div v-else>
+          <div @click="finishFunding()" class="custom-button-fund">
+            Funding over
+          </div>
+        </div>
       </div>
+      
+
+
 
 
     </div>
@@ -77,6 +93,12 @@
 <script>
 import Clipboard from 'clipboard';
 
+import {
+    mapActions,
+    mapState
+} from 'pinia'
+
+import { useContract } from '../stores/contract/contract';
 
 import NavHeader from '../components/NavHeader.vue';
 import Footer from '../components/Footer.vue';
@@ -88,13 +110,7 @@ export default {
   },
   data() {
     return {
-      amountCollected: 650, // Initial amount collected
-      totalAmount: 1000, // Total amount to be collected
       progress: 0, // Initial progress percentage
-      name: '',
-      hash: 'd508b36232a5069b4ae932a27aa11e83e48a7479',
-      minHash: 'd508b362....e48a7479',
-      endtime: 1707555600,
       timeLeft: 0,
       timeLeftToFinish: {
         days: 0,
@@ -103,22 +119,70 @@ export default {
         seconds: 0
       },
       showNotification: false,
+      addressInput: "",
     };
   },
+  computed: {
+    ...mapState(useContract, ['address', 'hash', 'minHash', 'totalAmount', 'amountCollected', 'icoEndtime', 'name', 'icoSuccess', 'icoOver'])
+  },
   mounted() {
-    this.updateTimeLeft();
-    // Update time left every second
-    this.intervalId = setInterval(this.updateTimeLeft, 1000);
-    // Checking the progress
-    this.calculateProgress();
+    this.refresh()
   },
   beforeDestroy() {
     // Clear the interval when the component is destroyed
     clearInterval(this.intervalId);
   },
   methods: {
+    async finishFunding() {
+      try {
+        const contract = useContract()
+        if (contract.icoOver) {
+          throw new Error("ICO ended")
+        }
+
+        await contract.finishIco()
+      } catch (e) {
+        alert(e)
+      }
+    },
+
+    async refresh() {
+      this.updateTimeLeft();
+      // Update time left every second
+      this.intervalId = setInterval(this.updateTimeLeft, 1000);
+      // Checking the progress
+      this.calculateProgress();
+    },
+
+    async linkContract() {
+      try {
+        const address = this.addressInput
+        console.log("linking contract " + address)
+
+        const contract = useContract()
+        await contract.load(address)
+        await contract.persistAddress(address)
+
+        this.refresh()
+
+        console.log(contract.$state)
+      } catch (e) {
+        alert(e)
+      }
+    },
+
+    async fund() {
+      const contract = useContract()
+      const ether = prompt("How much you'd like to donate? (Wei)", "0")
+
+      await contract.fund(ether)
+      this.calculateProgress()
+    },
+
     copyToClipboard() {
-      const text = this.hash
+      const contract = useContract()
+
+      const text = contract.hash
       console.log(text)
       const clipboard = new Clipboard('.btn-copy', {
         text: () => text
@@ -127,23 +191,29 @@ export default {
 
     },
     increaseFund() {
-      if (this.amountCollected < this.totalAmount && this.amountCollected >= 0) {
-        this.amountCollected = this.amountCollected + 10;
+      const contract = useContract()
+
+      if (contract.amountCollected < contract.totalAmount && contract.amountCollected >= 0) {
+        contract.amountCollected = contract.amountCollected + 10;
         this.calculateProgress()
       } else {
         alert('max Reached')
       }
     },
     decreseFund() {
-      if (this.amountCollected > 0) {
-        this.amountCollected = this.amountCollected - 10;
-        this.calculateProgress()
+      const contract = useContract()
+
+      if (contract.amountCollected > 0) {
+        contract.amountCollected = contract.amountCollected - 10;
+        contract.calculateProgress()
       } else {
         alert('min')
       }
     },
     calculateProgress() {
-      this.progress = (this.amountCollected / this.totalAmount) * 100;
+      const contract = useContract()
+
+      this.progress = Number(contract.amountCollected / contract.totalAmount) * 100;
     },
     showCopiedNotification() {
       this.showNotification = true;
@@ -152,9 +222,11 @@ export default {
       }, 2000); // Adjust the duration as needed (in milliseconds)
     },
     updateTimeLeft() {
+      const contract = useContract()
+
       const currentTime = Math.floor(Date.now() / 1000); // Current UNIX time in seconds
       console.log(currentTime)
-      this.timeLeft = this.endtime - currentTime;
+      this.timeLeft = contract.icoEndtime - currentTime;
       console.log(this.timeLeft)
       if (this.timeLeft > 0) {
         this.timeLeftToFinish.days = Math.floor(this.timeLeft / (60 * 60 * 24));
@@ -209,8 +281,8 @@ export default {
   margin-top: 5px;
   margin-left: auto;
   margin-right: auto;
-  height: 50px;
-  width: 300px;
+  height: 40px;
+  width: 200px;
   background-color: #FFD400;
   border-radius: 17px;
   display: grid;

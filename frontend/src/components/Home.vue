@@ -1,5 +1,5 @@
 <template>
-    <NavHeader />
+    <NavHeader main-page="" />
     <!-- External Links -->
     <div class="flex-grow justify-center ">
         <router-link to='/LaunchProject'

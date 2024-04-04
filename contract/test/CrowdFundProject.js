@@ -34,8 +34,8 @@ describe("CrowdFund", function () {
         vestingWalletStubFactory = await ethers.getContractFactory("VestingWalletStub")
         stub = await vestingWalletStubFactory.deploy()
         
-        crowdfundFactory = await ethers.getContractFactory("CrowdFund")
-        contract = await crowdfundFactory.deploy(depositLowCap, voteAbortRatio, startTimestamp, endTimestamp, successLowerThreshold, stub)
+        crowdfundFactory = await ethers.getContractFactory("CrowdFundProject")
+        contract = await crowdfundFactory.deploy(depositLowCap, voteAbortRatio, startTimestamp, endTimestamp, successLowerThreshold, stub, ethers.ZeroAddress)
         let signers = (await ethers.getSigners()).slice(0, 4)
         await sendEth(signers[3], stub, GWEI)
 
@@ -44,7 +44,7 @@ describe("CrowdFund", function () {
 
     async function contractInVesting() {
         let { contract, stub, signers, depositLowCap, voteAbortRatio, startTimestamp, endTimestamp, successLowerThreshold } = await deployContractClean()
-        const donationEach = successLowerThreshold / 3n + GWEI;
+        const donationEach = successLowerThreshold;
 
         await sendEth(signers[0], contract.target, donationEach)
         await sendEth(signers[1], contract.target, donationEach)
@@ -82,10 +82,11 @@ describe("CrowdFund", function () {
             let { contract, stub, signers, depositLowCap, voteAbortRatio, startTimestamp, endTimestamp, successLowerThreshold } = await loadFixture(deployContractClean)
             let user = signers[0]
 
-            await sendEth(user, contract.target, successLowerThreshold)
-            expect(await ethers.provider.getBalance(contract.target)).equals(successLowerThreshold)
-            await contract.finalize()
-            expect(await ethers.provider.getBalance(contract.target)).equals(0)
+            let toDonate = await contract.donationsNeeded()
+            await sendEth(user, contract.target, toDonate)
+            expect(await contract.donationsTotal()).equals(toDonate)
+
+            await expect(contract.finalize()).to.emit(stub, "BankAccepted").withArgs(successLowerThreshold)
             expect(await ethers.provider.getBalance(stub.target)).greaterThanOrEqual(successLowerThreshold)
         });
     });
@@ -107,7 +108,8 @@ describe("CrowdFund", function () {
         it("Declines voting to non-donors", async function() {
             let { contract, stub, signers, depositLowCap, voteAbortRatio, startTimestamp, endTimestamp, successLowerThreshold } = await loadFixture(contractInVesting)
 
-            expect(contract.connect(signers[3]).vote(true)).to.be.revertedWith("no voting power")
+            let other = signers[3]
+            expect(contract.connect(other).vote(true)).to.be.revertedWith("no voting power")
         })
     });
 
@@ -120,7 +122,9 @@ describe("CrowdFund", function () {
             await contract.connect(signers[1]).vote(toAbort)
             await contract.connect(signers[2]).vote(toAbort)
             expect(await contract.votedToAbort()).equals(true)
-            expect(contract.withdrawAll()).to.emit(stub, "BankReclaimed")
+
+            let balance = await ethers.provider.getBalance(stub.target)
+            await expect(contract.withdrawAll()).to.emit(stub, "BankReclaimed").withArgs(balance)
         });
 
         it("TODO: Distributes the donation bank back in ratio to initial offering", async function () {

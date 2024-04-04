@@ -8,17 +8,23 @@
         </div>
     </transition>
 
+    <div class="flex-grow flex justify-center justify-center items-center">
+        <div v-if="!address" class="p-4 rounded rounded-[20px] w-[600px] mx-auto bg-[#541388] tracking-[2px] shadow-2xl space-y-4">
+            <h2 class="text-lg font-bold text-center text-[#F1E9DA]">Link project</h2>
 
+            <input type="text" v-model="addressInput" id="projectContractAddrInput" name="projectContractAddrInput" placeholder="Project address"
+                class="form-input block w-full" required>
+            <div @click="linkContract()" class="custom-button-fund">Go</div>
+        </div>
 
-    <div class="flex-grow flex justify-center justify-center items-center text-[#F1E9DA]">
-        <div class="p-4 rounded rounded-[20px] w-[600px] mx-auto bg-[#541388] tracking-[2px] shadow-2xl">
+        <div v-if="address" class="p-4 rounded rounded-[20px] w-[600px] mx-auto bg-[#541388] tracking-[2px] shadow-2xl text-[#F1E9DA]">
             <h2 class="text-lg font-bold text-center">Time to vote!</h2>
 
             <!-- Project Information -->
             <div class="flex justify-between information-block">
                 Last commit:
-                <div class="flex">{{ minHash }} &nbsp<img @click="copyToClipboard()" src="../assets/Icons/copy.png" alt=""
-                        class="h-[20px] cursor-pointer btn-copy invert">
+                <div class="flex">
+                    {{ minHash }} &nbsp<img @click="copyToClipboard()" src="../assets/Icons/copy.png" alt="" class="h-[20px] cursor-pointer btn-copy invert">
                 </div>
             </div>
 
@@ -106,6 +112,12 @@
 <script>
 import Clipboard from 'clipboard';
 
+import {
+    mapActions,
+    mapState
+} from 'pinia'
+
+import { useContract } from '../stores/contract/contract';
 
 import NavHeader from '../components/NavHeader.vue';
 import Footer from '../components/Footer.vue';
@@ -118,14 +130,6 @@ export default {
     data() {
         return {
             totalVote: 100,
-            voteYes: 40,
-            voteNo: 20,
-            voteShare: 11.2,
-            voteThreshold: 70, // Amount of votes required for accept or reject
-            name: '',
-            hash: '069b4ae9d508b36232a532a27aa174791e83e48a',
-            minHash: '069b4ae9....1e83e48a',
-            endtime: 1708965600,
             timeLeft: 0,
             timeLeftToFinish: {
                 days: 0,
@@ -133,22 +137,43 @@ export default {
                 minutes: 0,
                 seconds: 0
             },
-            showNotification: false,
-            voted: false,
+            showNotification: false
         };
     },
+    computed: {
+        ...mapState(useContract, ['address', 'hash', 'minHash', 'name', 'voteShare', 'voteNo', 'voteYes', 'voteThreshold', 'voteEndtime', 'voted', 'voteActive'])
+    },
     mounted() {
-        this.updateTimeLeft();
-        // Update time left every second
-        this.intervalId = setInterval(this.updateTimeLeft, 1000);
-        // Checking the progress
-        this.calculateProgress();
+        this.refresh()
     },
     beforeDestroy() {
         // Clear the interval when the component is destroyed
         clearInterval(this.intervalId);
     },
     methods: {
+        async linkContract() {
+            try {
+                const address = this.addressInput
+                console.log("linking contract")
+
+                const contract = useContract()
+                await contract.load(address)
+                await contract.persistAddress(address)
+
+                this.refresh()
+
+                console.log(contract.$state)
+            } catch (e) {
+                alert(e)
+            }
+        },
+        refresh() {
+            this.updateTimeLeft();
+            // Update time left every second
+            this.intervalId = setInterval(this.updateTimeLeft, 1000);
+            // Checking the progress
+            this.calculateProgress();
+        },
         copyToClipboard() {
             const text = this.hash
             console.log(text)
@@ -158,10 +183,9 @@ export default {
             this.showCopiedNotification()
 
         },
-        Vote(vote) {
-            // TO DO
-
-
+        async vote(vote) {
+            const contract = useContract()
+            await contract.vote(vote)
         },
         calculateProgress() {
             this.progress = (this.amountCollected / this.totalAmount) * 100;
@@ -173,9 +197,11 @@ export default {
             }, 2000); // Adjust the duration as needed (in milliseconds)
         },
         updateTimeLeft() {
+            const contract = useContract()
+
             const currentTime = Math.floor(Date.now() / 1000); // Current UNIX time in seconds
             console.log(currentTime)
-            this.timeLeft = this.endtime - currentTime;
+            this.timeLeft = contract.voteEndtime - currentTime;
             console.log(this.timeLeft)
             if (this.timeLeft > 0) {
                 this.timeLeftToFinish.days = Math.floor(this.timeLeft / (60 * 60 * 24));
@@ -256,5 +282,27 @@ export default {
 .No:hover {
     background-color: #ff0000;
 }
+
+.custom-button-fund {
+  color: black;
+  margin-top: 5px;
+  margin-left: auto;
+  margin-right: auto;
+  height: 50px;
+  width: 300px;
+  background-color: #FFD400;
+  border-radius: 17px;
+  display: grid;
+  place-content: center;
+  cursor: pointer;
+  font-size: 1.3rem;
+  /* Adjust as per your design */
+  letter-spacing: 1.5px;
+}
+
+.custom-button-fund:hover {
+  background-color: #bea006;
+}
+
 </style>
     

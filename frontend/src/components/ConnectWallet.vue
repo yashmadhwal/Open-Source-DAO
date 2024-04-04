@@ -1,30 +1,56 @@
 <template>
     <div class="flex justify-center">
         <div class="w-[300px] pl-[5px] pr-[5px]">
-            <!-- <div @click="connectMetamask()" v-if='!loading && !login'
+            <div @click="connectMetamask()" v-if='!loading && !login'
                 class="custom-button">
-                Connect MetaMask</div>
+                Connect MetaMask
+            </div>
             <div v-if='loading'
                 class="custom-button cursor-progress">
                 <div v-if='loading' class="flex"><img src="../assets/Icons/loading.png" alt=""
                         class="motion-reduce:hidden animate-spin dark:invert">&nbsp;&nbsp;Loading...</div>
-            </div> -->
+            </div>
+
+            <div v-if="login && !loading" class="custom-button cursor-not-allowed bg-[#bea006]">
+                {{ shortWallet }}
+            </div>
 
             <!-- Custom Wallet, at later stages to be removed -->
-            <div 
+            <!-- <div 
                 class="custom-button cursor-not-allowed bg-[#bea006]">
                 0x2DE328...0A3733{{ shortWallet }}</div>
+            </div> -->
         </div>
     </div>
 </template>
 
 <script>
 
+import {
+    defineComponent
+} from '@vue/composition-api'
 
+import {
+    mapActions,
+    mapState
+} from 'pinia'
 
-export default {
+import {
+    useUser
+} from '../stores/user'
+
+export default defineComponent({
     name: 'ConnectWallet',
-}
+    beforeMount() {
+        this.environmentsetup()
+    },
+    computed: {
+        ...mapState(useUser, ['shortWallet', 'loading', 'login']),
+    },
+    methods: {
+        ...mapActions(useUser, ['connectMetamask', 'environmentsetup'])
+    }
+})
 </script>
 
 <style>

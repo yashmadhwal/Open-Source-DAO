@@ -14,7 +14,7 @@ contract VestingWallet is IVestingWallet, Ownable {
     uint256 public constant MONTH_SECONDS = 2592000;
     uint256 public constant WEEK_SECONDS = 604800;
 
-    address private immutable receivingAddress;
+    address public immutable receivingAddress;
 
     uint256 private immutable startTs;
     uint256 private immutable monthsDuration;
@@ -35,17 +35,33 @@ contract VestingWallet is IVestingWallet, Ownable {
         receivingAddress = _receivingAddress;
     }
 
-    function votingPeriod() public view returns (bool voteActive, uint256 periodNo) {
-        if (month() <= 1 || month() > monthsDuration) {
-            return (false, month());
+    function votingPeriodEndTs() public view returns (uint256) {
+        if (!active) {
+            return 0;
         }
 
-        uint256 votingEndTs = startTs + (month() - 1) * MONTH_SECONDS + WEEK_SECONDS;
-        return (block.timestamp <= votingEndTs, month());
+        return startTs + (month() - 1) * MONTH_SECONDS + WEEK_SECONDS;
+    }
+
+    function votingPeriod() public view returns (bool voteActive, uint256 periodNo) {
+        // For demo purposes, allow to vote anytime
+        return (active, month());
+
+        // True code:
+
+        // if (month() <= 1 || month() > monthsDuration) {
+        //     return (false, month());
+        // }
+
+        // return (block.timestamp <= votingPeriodEndTs(), month());
     }
 
     function sourceAddress() public view returns (address) {
         return owner();
+    }
+
+    function wallet() public view returns (address) {
+        return receivingAddress;
     }
 
     receive() external payable {

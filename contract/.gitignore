@@ -17,3 +17,6 @@ node_modules
 /package-lock.json
 
 deployments
+
+/.secrets.json
+.old

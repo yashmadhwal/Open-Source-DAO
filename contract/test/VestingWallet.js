@@ -58,6 +58,7 @@ describe("VestingWallet", function () {
             expect(await contract.durationMonths()).equals(durationInMonths)
             expect(await contract.month()).equals(0)
             expect(await contract.releaseable()).equals(0)
+            expect(await contract.wallet()).equals(receiver);
         })
     })
 
@@ -125,7 +126,7 @@ describe("VestingWallet", function () {
             await setBalance(receiver.address, 0)
             await contract.release()
             expect(await contract.releaseable()).equals(0)
-            expect(await ethers.provider.getBalance(receiver.address)).equals(monthlyAllocation)
+            expect(await ethers.provider.getBalance(await contract.wallet())).equals(monthlyAllocation)
         });
     });
 });

@@ -7,13 +7,17 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {IVestingWallet} from "./IVestingWallet.sol";
 
 contract VestingWalletStub is IVestingWallet {
-    event BankReclaimed();
+    event BankReclaimed(uint256 amount);
+    event BankAccepted(uint256 amount);
 
     constructor() {}
 
-    receive() external payable {}
+    receive() external payable {
+        emit BankAccepted(msg.value);
+    }
 
     function reclaimBank() public payable {
+        emit BankReclaimed(address(this).balance);
         Address.sendValue(payable(msg.sender), address(this).balance);
     }
 

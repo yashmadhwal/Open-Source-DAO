@@ -5,8 +5,6 @@ pragma solidity ^0.8.20;
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
-import "hardhat/console.sol";
-
 using MessageHashUtils for DocumentIndex;
 
 contract DocumentIndex {

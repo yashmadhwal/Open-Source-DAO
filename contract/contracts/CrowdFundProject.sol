@@ -4,13 +4,18 @@ pragma solidity ^0.8.20;
 
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {IVestingWallet} from "./IVestingWallet.sol";
+import {DocumentIndex} from "./DocumentIndex.sol";
 
-contract CrowdFund {
+contract CrowdFundProject {
     enum FundingState {
         COLLECTING,
         VESTING,
         ABORTED
     }
+    
+    address public immutable vestingContract;
+    address public immutable documentsContract;
+    uint256 public immutable votingAbortPercent;
 
     mapping(uint256 => uint256) voting_abortTotal;
     mapping(uint256 => uint256) voting_continueTotal;
@@ -19,13 +24,12 @@ contract CrowdFund {
 
     FundingState private state;
     bool private reclaimed;
-    address private vestingContract;
     mapping(address => uint256) sponsorTokenBalanceOf;
     uint256 sponsorTokenTotalSupply;
     uint256 collectThreshold;
+    uint256 donatedTotal;
 
     uint256 private immutable depositLowCap;
-    uint256 private immutable votingAbortPercent;
     uint256 private immutable icoStartTs;
     uint256 private immutable icoEndTs;
 
@@ -35,7 +39,9 @@ contract CrowdFund {
         uint256 _startTimestamp,
         uint256 _endTimestamp,
         uint256 _successLowerThreshold,
-        address _vestingContract
+
+        address _vestingContract,
+        address _documentsContract
     ) {
         depositLowCap = _depositLowCap;
         votingAbortPercent = _votingAbortPercent;
@@ -43,10 +49,27 @@ contract CrowdFund {
         icoEndTs = _endTimestamp;
         collectThreshold = _successLowerThreshold;
         vestingContract = _vestingContract;
+        documentsContract = _documentsContract;
     }
 
     receive() external payable {
         deposit();
+    }
+
+    function documentIndexContract() public view returns (address) {
+        return documentsContract;
+    }
+
+    function vestingWalletContract() public view returns (address) {
+        return vestingContract;
+    }
+
+    function donationsNeeded() public view returns (uint256) {
+        return collectThreshold;
+    }
+
+    function donationsTotal() public view returns (uint256) {
+        return sponsorTokenTotalSupply;
     }
 
     function deposit() public payable {
@@ -63,6 +86,14 @@ contract CrowdFund {
 
     function end() public view returns (uint256) {
         return icoEndTs;
+    }
+
+    function success() public view returns (bool) {
+        return sponsorTokenTotalSupply >= collectThreshold;
+    }
+
+    function icoOver() public view returns (bool) {
+        return state != FundingState.COLLECTING;
     }
 
     function finalize() public payable {
@@ -82,9 +113,21 @@ contract CrowdFund {
             reclaimed = true;
         }
 
-        uint256 toRefund = (address(this).balance * sponsorTokenBalanceOf[msg.sender]) / sponsorTokenTotalSupply;
+        uint256 toRefund = (address(this).balance * voteShareOf(msg.sender)) / sponsorTokenTotalSupply;
         sponsorTokenBalanceOf[msg.sender] = 0;
         Address.sendValue(payable(msg.sender), toRefund);
+    }
+    
+    function voteShareOf(address owner) public view returns (uint256) {
+        return sponsorTokenBalanceOf[owner];
+    }
+
+    function voteAbortTotal(uint256 voteIndex) public view returns (uint256) {
+        return voting_abortTotal[voteIndex];
+    }
+
+    function voteContinueTotal(uint256 voteIndex) public view returns (uint256) {
+        return voting_continueTotal[voteIndex];
     }
 
     function votedToAbort() public view returns (bool) {
@@ -92,6 +135,10 @@ contract CrowdFund {
         require(voting_index == periodNo, "voting outdated");
 
         return (100 * voting_abortTotal[voting_index]) / sponsorTokenTotalSupply >= votingAbortPercent;
+    }
+
+    function hasVoted(uint256 voteIndex, address voter) public view returns (bool) {
+        return voting_acceptedVotes[voteIndex][voter];
     }
 
     function vote(bool abort) public {
@@ -104,7 +151,7 @@ contract CrowdFund {
             voting_index = periodNo;
         }
 
-        require(!voting_acceptedVotes[voting_index][_voter], "already voted");
+        require(!hasVoted(voting_index, _voter), "already voted");
         voting_acceptedVotes[voting_index][_voter] = true;
 
         if (abort) {
