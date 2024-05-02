@@ -26,9 +26,7 @@
 
 <script>
 
-import {
-    defineComponent
-} from '@vue/composition-api'
+import { defineComponent, defineModel } from 'vue';
 
 import {
     mapActions,

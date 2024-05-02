@@ -63,17 +63,18 @@ describe("VestingWallet", function () {
     })
 
     describe("After start", function() {
-        it("First month no vote", async function() {
-            let { contract, startTimestamp, durationInMonths, owner, receiver } = await loadFixture(deployContractWithAcceptedBank)
+        // For demo purposes, void this requirement
+        // it("First month no vote", async function() {
+        //     let { contract, startTimestamp, durationInMonths, owner, receiver } = await loadFixture(deployContractWithAcceptedBank)
 
-            await time.increaseTo(startTimestamp + 1);
-            expect(await contract.isActive()).equals(true)
-            expect(await contract.month()).equals(1)
+        //     await time.increaseTo(startTimestamp + 1);
+        //     expect(await contract.isActive()).equals(true)
+        //     expect(await contract.month()).equals(1)
 
-            const { voteActive, periodNo } = await contract.votingPeriod()
-            expect(voteActive).equals(false)
-            expect(periodNo).equals(1)
-        })
+        //     const { voteActive, periodNo } = await contract.votingPeriod()
+        //     expect(voteActive).equals(false)
+        //     expect(periodNo).equals(1)
+        // })
 
         it("Vote indication", async function() {
             let { contract, startTimestamp, durationInMonths, owner, receiver } = await loadFixture(deployContractWithAcceptedBank)

@@ -7,10 +7,10 @@ import VestingWalletCode from '../../contract/artifacts/contracts/VestingWallet.
 import DocumentIndexCode from '../../contract/artifacts/contracts/DocumentIndex.sol/DocumentIndex.json';
 import EqualDistributeWalletCode from '../../contract/artifacts/contracts/EqualDistributeWallet.sol/EqualDistributeWallet.json';
 
-import { CrowdFundProject } from '../../contract/typechain';
-import { DocumentIndex } from '../../contract/typechain';
-import { VestingWallet } from '../../contract/typechain';
-import { EqualDistributeWallet } from '../../contract/typechain';
+import { CrowdFundProject } from '../../contract/typechain-types';
+import { DocumentIndex } from '../../contract/typechain-types';
+import { VestingWallet } from '../../contract/typechain-types';
+import { EqualDistributeWallet } from '../../contract/typechain-types';
 
 // import { deployProject } from './deploy';
 
